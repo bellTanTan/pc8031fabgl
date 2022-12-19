@@ -104,8 +104,6 @@ public:
   {
     _MSG_PRINT( "Internal Total Heap %d bytes\r\n", ESP.getHeapSize() );
     _MSG_PRINT( "Internal Free  Heap %d bytes\r\n", ESP.getFreeHeap() );
-    _MSG_PRINT( "SPIRam Total Heap %d bytes\r\n", ESP.getPsramSize() );
-    _MSG_PRINT( "SPIRam Free  Heap %d bytes\r\n", ESP.getFreePsram() );
   }
 
 private:

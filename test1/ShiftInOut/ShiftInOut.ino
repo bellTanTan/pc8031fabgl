@@ -13,36 +13,25 @@
 * Please contact trinity09181718@gmail.com if you need a commercial license.
 * This software is available under GPL v3.
 
-* This library and related software is available under GPL v3.
-
-  FabGL is free software: you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation, either version 3 of the License, or
-  (at your option) any later version.
-
-  FabGL is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
-
-  You should have received a copy of the GNU General Public License
-  along with FabGL.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #pragma GCC optimize ("O2")
 
 #include <Arduino.h>
 
-#define IN_SL     23    // ESP32 GPIO -> LEVEL SHIFT -> SN74HC165N SH/LD
-#define IN_CLK    19    // ESP32 GPIO -> LEVEL SHIFT -> SN74HC165N CLK
-#define IN_QH     18    // ESP32 GPIO <- LEVEL SHIFT <- SN74HC165N QH
-#define OUT_SER   5     // ESP32 GPIO -> LEVEL SHIFT -> SN74HC595N SER
-#define OUT_RCLK  4     // ESP32 GPIO -> LEVEL SHIFT -> SN74HC595N RCLK
-#define OUT_SRCLK 15    // ESP32 GPIO -> LEVEL SHIFT -> SN74HC595N SRCLK
+#define IN_SL           23    // ESP32 GPIO -> LEVEL SHIFT -> SN74HC165N SH/LD
+#define IN_CLK          19    // ESP32 GPIO -> LEVEL SHIFT -> SN74HC165N CLK
+#define IN_QH           18    // ESP32 GPIO <- LEVEL SHIFT <- SN74HC165N QH
+#define OUT_SER         5     // ESP32 GPIO -> LEVEL SHIFT -> SN74HC595N SER
+#define OUT_RCLK        4     // ESP32 GPIO -> LEVEL SHIFT -> SN74HC595N RCLK
+#define OUT_SRCLK       15    // ESP32 GPIO -> LEVEL SHIFT -> SN74HC595N SRCLK
+#define SYSTEM_STATUS   33    // ESP32 GPIO SYSTEM STATUS LED
 
 uint8_t   outLedData;
 uint16_t  oldInData;
 int       ledFlag;
+int       systemStatusLed;
+int       systemStatusLedTimer;
 
 
 uint16_t shiftInput( void )
@@ -87,23 +76,38 @@ void setup()
   digitalWrite( IN_CLK,    LOW );
   digitalWrite( OUT_RCLK,  LOW );
   digitalWrite( OUT_SRCLK, LOW );
+  pinMode( SYSTEM_STATUS, OUTPUT );
+  digitalWrite( SYSTEM_STATUS, LOW );
 
   Serial.begin( 115200 );
   while (!Serial && !Serial.available());
   Serial.printf( "boot\r\n" );
 
-  outLedData = 0x00;
-  oldInData  = 0xFFFF;
-  ledFlag    = 0;
+  outLedData           = 0x00;
+  oldInData            = 0xFFFF;
+  ledFlag              = 0;
+  systemStatusLed      = LOW;
+  systemStatusLedTimer = millis();
   shiftOutput( 0x0000 );
 }
 
 void loop()
 {
+  int dt = millis() - systemStatusLedTimer;
+  if ( dt >= 500 )
+  {
+    systemStatusLedTimer = millis();
+    if ( systemStatusLed == LOW )
+      systemStatusLed = HIGH;
+    else
+      systemStatusLed = LOW;
+    digitalWrite( SYSTEM_STATUS, systemStatusLed );
+  }
+
   uint32_t t0 = micros();
   uint16_t inData = shiftInput();
   uint32_t t1 = micros();
-  int dt = t1 - t0;
+  dt = t1 - t0;
   if ( inData != oldInData )
   {
     oldInData = inData;

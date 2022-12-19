@@ -462,6 +462,14 @@ void Machine::freeDir( void )
 {
   if ( m_diskDirList )
   {
+    for ( int i = 0; i < m_diskDirListCount; i++ )
+    {
+      if ( m_diskDirList[i].name )
+      {
+        free( m_diskDirList[i].name );
+        m_diskDirList[i].name = NULL;
+      }
+    }
     free( m_diskDirList );
     m_diskDirList      = NULL;
     m_diskDirListCount = 0;

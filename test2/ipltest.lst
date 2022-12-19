@@ -14,35 +14,21 @@
 0000			; 
 0000			                ORG     0C000H 
 c000			_PROG_TOP: 
-c000 18 0e		                JR      START_IPL 
-c002 00			                NOP 
-c003 00			                NOP 
-c004 00			                NOP 
-c005 00			                NOP 
-c006 00			                NOP 
-c007 00			                NOP 
-c008 00			                NOP 
-c009 00			                NOP 
-c00a 00			                NOP 
-c00b 00			                NOP 
-c00c 00			                NOP 
-c00d 00			                NOP 
-c00e 00			                NOP 
-c00f 00			                NOP 
-c010			START_IPL: 
-c010 21 00 c0		                LD      HL,_PROG_TOP 
-c013 11 00 90		                LD      DE,IPL_REBASE_TOP 
-c016 01 00 01		                LD      BC,0100H 
-c019 ed b0		                LDIR 
-c01b 21 27 90		                LD      HL,IPL_MSG0 - ( _PROG_TOP - IPL_REBASE_TOP ) 
-c01e cd ed 52		                CALL    ROM_MSGOUT 
-c021 af			                XOR     A 
-c022 32 c7 ed		                LD      (DRIVE_COUNT),A 
-c025 37			                SCF 
-c026 c9			                RET 
-c027 .. 0d 0a 0d 0a 00	IPL_MSG0:       DB      "Hello World!", 0DH, 0AH, 0DH, 0AH, 0 
-c038			_PROG_END:       
-c038 0xff...		                DS      256 - ( _PROG_END - _PROG_TOP ), 0FFH 
+c000			START_IPL: 
+c000 21 00 c0		                LD      HL,_PROG_TOP 
+c003 11 00 90		                LD      DE,IPL_REBASE_TOP 
+c006 01 00 01		                LD      BC,0100H 
+c009 ed b0		                LDIR 
+c00b 21 17 90		                LD      HL,IPL_MSG0 - ( _PROG_TOP - IPL_REBASE_TOP ) 
+c00e cd ed 52		                CALL    ROM_MSGOUT 
+c011 af			                XOR     A 
+c012 32 c7 ed		                LD      (DRIVE_COUNT),A 
+c015 37			                SCF 
+c016 c9			                RET 
+c017			; 
+c017 .. 0d 0a 0d 0a 00	IPL_MSG0:       DB      "Hello World!", 0DH, 0AH, 0DH, 0AH, 0 
+c028			_PROG_END:       
+c028 0xff...		                DS      256 - ( _PROG_END - _PROG_TOP ), 0FFH 
 c100			                END 
 			
 

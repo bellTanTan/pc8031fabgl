@@ -217,7 +217,7 @@ void uPD765A::write_signal( int id )
         || ( m_phase == PHASE_RESULT && m_bufferCount == 7 ) )
       {
         m_prevphase = m_phase;
-				m_phase     = PHASE_TC;
+        m_phase     = PHASE_TC;
         process_cmd( m_command & 0x1F );
       }
       break;
@@ -252,7 +252,7 @@ void uPD765A::tick( void )
         int drv = eventID - (int)EVENT_SEEK_DRV0;
         m_eventID = (EVENT)-1;
         m_eventTimer[eventID] = 0;
-    	seek_event( drv );
+      seek_event( drv );
       }
       break;
   }
@@ -492,7 +492,7 @@ void uPD765A::cmd_recalibrate( void )
       break;
     case PHASE_CMD:
       _UPD765A_DEBUG_PRINT( "uPD765A %s(%d) 0x%02X\r\n", __func__, __LINE__, m_buffer[0] );
-  		seek( m_buffer[0] & DRIVE_MASK, 0 );
+      seek( m_buffer[0] & DRIVE_MASK, 0 );
       shift_to_idle();
       break;
   }
@@ -577,7 +577,7 @@ void uPD765A::cmd_seek( void )
       break;
     case PHASE_CMD:
       _UPD765A_DEBUG_PRINT( "uPD765A %s(%d) 0x%02X 0x%02X\r\n", __func__, __LINE__, m_buffer[0], m_buffer[1] );
-  		seek( m_buffer[0] & DRIVE_MASK, m_buffer[1] );
+      seek( m_buffer[0] & DRIVE_MASK, m_buffer[1] );
       shift_to_idle();
       break;
   }
@@ -593,7 +593,7 @@ void uPD765A::cmd_scan( void )
 void uPD765A::cmd_invalid( void )
 {
   m_buffer[0] = (uint8_t)ST0_IC;
-	shift_to_result( 1 );
+  shift_to_result( 1 );
   set_irq( true );
 }
 
@@ -701,7 +701,7 @@ void uPD765A::write_data( bool deleted )
   {
     shift_to_result7();
     return;
-	}
+  }
   m_result = write_sector( deleted );
 }
 
