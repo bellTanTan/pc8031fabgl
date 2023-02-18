@@ -113,6 +113,8 @@ private:
   bool              m_deleted;          // flag : deleted
   bool              m_crcError;         // flag : crc error
   bool              m_driveMfm;         // flag : driver type Modified Frequency Modulation
-  FILE *            m_formatfp;         // format track
+  uint8_t *         m_formatData;       // 1 cylinder format write data
+  int               m_formatMemSize;    // 1 cylinder format memory data size (16+256)*16=4352bytes
+  int               m_formatSeekPos;    // 1 cylinder format seek top position
 };
 

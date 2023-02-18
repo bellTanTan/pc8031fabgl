@@ -65,7 +65,11 @@ Machine::~Machine()
 
 int Machine::init( void )
 {
-  if ( !FileBrowser::mountSDCard( false, SD_MOUNT_PATH ) ) return -1;
+#ifndef _USED_SPIFFS
+  if ( !FileBrowser::mountSDCard( false, MOUNT_PATH ) ) return -1;
+#else
+  if ( !FileBrowser::mountSPIFFS( false, MOUNT_PATH ) ) return -1;
+#endif // _USED_SPIFFS
 
   // DISK ROM
   m_diskRomEnable = m_DISK.romLoad( PC80312W_ROM );
@@ -116,6 +120,8 @@ void Machine::initWifi( void )
   m_wifiConnectCheckCnt = 0;
   m_wifiTimer           = 0;
   m_wifiSeqNo           = 0;
+  m_ledFlickerCount     = 0;
+  m_fdSettingComplete   = false;
 }
 
 
@@ -214,7 +220,11 @@ void Machine::wifiMain( void )
       m_wifiSeqNo = 110;
       break;
     case 110:
-      _MSG_PRINT( "'%s%s' directory listup\r\n", SD_MOUNT_PATH, PC8001MEDIA_DISK );
+#ifdef _USED_SPIFFS
+      if ( ntpServer != NULL && strlen( ntpServer) > 0 )
+        updateSpiffsFileDateTime();
+#endif // _USED_SPIFFS
+      _MSG_PRINT( "'%s%s' directory listup\r\n", MOUNT_PATH, PC8001MEDIA_DISK );
       if ( listDir() )
        qsort( m_diskDirList, m_diskDirListCount, sizeof( *m_diskDirList ), qsortComp );
       m_wifiSeqNo = 120;
@@ -252,8 +262,27 @@ void Machine::wifiMain( void )
       {
         _MSG_PRINT( "Wi-Fi connection down.\r\n" );
         webServer.stop();
+        MDNS.end();
         m_wifiTimer = millis();
         m_wifiSeqNo = 210;
+        break;
+      }
+      if ( m_fdSettingComplete )
+      {
+        int dt = millis() - m_wifiTimer;
+        if ( dt >= 50 )
+        {
+          m_wifiTimer = millis();
+          int value = m_wifiStatusLed;
+          if ( value == LOW )
+            value = HIGH;
+          else
+            value = LOW;
+          outputSystemStatusLed( value );
+          m_ledFlickerCount--;
+          if ( m_ledFlickerCount <= 0 )
+            m_fdSettingComplete = false;
+        }
       }
       break;
     case 210:
@@ -317,7 +346,7 @@ void Machine::eventWebHandleRoot( void )
   {
     const char * selected;
     char item[256];
-    sprintf( item, "  <p align=\"left\">fd%d \n", fd );
+    sprintf( item, "  <p align=\"left\">fd%d [drive %d] [drive %c:]\n", fd, fd+1, 'A'+fd );
     res += item;
     sprintf( item, "    <select name=\"fd%d\" size=\"1\">\n", fd );
     res += item;
@@ -346,7 +375,6 @@ void Machine::eventWebHandleRoot( void )
     res += "      <option value=\"-1\">eject</option>\n";
     for ( int i = 0; i < m_diskDirListCount; i++ )
     {
-      char item[256];
       if ( i == selPos )
         selected = " selected";
       else
@@ -398,16 +426,7 @@ bool Machine::eventWebHandleApply( void )
     }
   }
   if ( result )
-  {
     eventWebHandleRoot();
-    for ( int i = 0; i < 10; i++ )
-    {
-      outputSystemStatusLed( LOW );
-      delay( 50 );
-      outputSystemStatusLed( HIGH );
-      delay( 50 );
-    }
-  }
   else
     webServer.send( 500, "text/plain", "POST/arg failed\n" );
   return result;
@@ -434,7 +453,7 @@ bool Machine::listDir( void )
 {
   FileBrowser fb;
   char path[256];
-  sprintf( path, "%s%s", SD_MOUNT_PATH, PC8001MEDIA_DISK );
+  sprintf( path, "%s%s", MOUNT_PATH, PC8001MEDIA_DISK );
   if ( fb.setDirectory( path ) == false )
     return false;
   int count = fb.count();
@@ -451,7 +470,8 @@ bool Machine::listDir( void )
       continue;
     if ( strcasestr( dirItem->name, D88_FILE_EXTENSION ) == NULL )
       continue;
-    m_diskDirList[m_diskDirListCount].name = strdup( dirItem->name );
+    m_diskDirList[m_diskDirListCount].name       = strdup( dirItem->name );
+    m_diskDirList[m_diskDirListCount].tLastWrite = 0;
     m_diskDirListCount++;
   }
   return true;
@@ -485,6 +505,142 @@ int Machine::qsortComp( const void * p0, const void * p1 )
 }
 
 
+#ifdef _USED_SPIFFS
+bool Machine::updateSpiffsFileDateTime( void )
+{
+  uint8_t * binBuf = NULL;
+
+  // spiffs イメージ生成の日時補完用のファイル日時情報メモリロード
+  bool fFileDateTimeListLoadFailed = true;
+  char szPath[512];
+  sprintf( szPath, "%s/%s", MOUNT_PATH, FILE_DATETIME_LIST );
+  auto fp = fopen( szPath, "r" );
+  if ( fp )
+  {
+    fseek( fp, 0, SEEK_END );
+    size_t fileSize = ftell( fp );
+    fseek( fp, 0, SEEK_SET );
+    if ( fileSize > 0 )
+    {
+      binBuf = (uint8_t *)malloc( fileSize );
+      if ( binBuf != NULL )
+      {
+        size_t result = fread( binBuf, 1, fileSize, fp );
+        if ( result == fileSize )
+        {
+          _MSG_PRINT( "'%s' spiffs file datetime info load\r\n", szPath );
+          fFileDateTimeListLoadFailed = false;
+        }
+      }
+    }
+    fclose( fp );
+  }
+  else
+    fFileDateTimeListLoadFailed = false;
+  if ( fFileDateTimeListLoadFailed )
+    return false;
+
+  if ( binBuf != NULL )
+  {
+    _MSG_PRINT( "delete '%s'\r\n", szPath );
+    unlink( szPath );
+  }
+  else
+    return true;
+
+  FileBrowser fb;
+  sprintf( szPath, "%s/", MOUNT_PATH );
+  if ( fb.setDirectory( szPath ) == false )
+  {
+    if ( binBuf ) free( binBuf );
+    return false;
+  }
+  int count = fb.count();
+  if ( count <= 0 )
+  {
+    if ( binBuf ) free( binBuf );
+    return false;
+  }
+  _MSG_PRINT( "spiffs file datetime update start\r\n" );
+  for ( int i = 0; i < count; i++ )
+  {
+    DirItem const * dirItem = fb.get( i );
+    if ( !( dirItem && !dirItem->isDir ) )
+      continue;
+    if ( !strcmp( dirItem->name, FILE_DATETIME_LIST ) )
+      continue;
+    time_t tLastWrite = getFileDateTime( binBuf, dirItem->name );
+    char szFullPath[512];
+    sprintf( szFullPath, "%s/%s", MOUNT_PATH, dirItem->name );
+    struct utimbuf ut;
+    memset( &ut, 0, sizeof( ut ) );
+    ut.actime  = tLastWrite;
+    ut.modtime = tLastWrite;
+    int result = utime( szFullPath, &ut );
+    if ( result == 0 )
+    {
+      struct tm * ptm = localtime( &tLastWrite );
+      if ( ptm )
+      {
+        _MSG_PRINT( "%d/%02d/%02d %02d:%02d:%02d '%s'\r\n",
+                    ptm->tm_year+1900,
+                    ptm->tm_mon+1,
+                    ptm->tm_mday,
+                    ptm->tm_hour,
+                    ptm->tm_min,
+                    ptm->tm_sec,
+                    dirItem->name );
+      }
+    }
+  }
+  if ( binBuf ) free( binBuf );
+  _MSG_PRINT( "spiffs file datetime update end\r\n" );
+  return true;
+}
+
+
+time_t Machine::getFileDateTime( uint8_t * binBuf, const char * pszPath )
+{
+  // UNIX & *BSD & linux & Macintosh(Mac OS X以降)
+  // ls -lan --time-style="+%Y-%m-%d %H:%M:%S" > fileDateTimeList.txt
+  // -rw-r--r-- 1 1000 1000  4154 1991-01-27 08:25:20 3BY4 Part2 {mon L}.cmt
+  //
+  // Windowsコマンドプロンプトのdirはファイル日時の秒値を表示させる機能がオプション指定込みで無い。
+  // そのためforfiles(Windows Vista以降)を活用
+  // forfiles /c "cmd /c echo @fsize @fdate @ftime @file" > fileDateTimeList.txt
+  // 4154 1991/01/27 08:25:20 3BY4 Part2 {mon L}.cmt
+  time_t result = 0;
+  char * p = strstr( (const char *)binBuf, pszPath );
+  if ( p == NULL )
+    return result;
+  char * pszDateTop = p - 20;
+  char szDateTime[32];
+  memset( szDateTime, 0, sizeof( szDateTime ) );
+  strncpy( szDateTime, pszDateTop, 19 );
+  struct tm tm;
+  memset( &tm, 0, sizeof( tm ) );
+  //           1
+  // 0123456789012345678
+  // 1991-01-27 08:25:20
+  // 1991/01/27 08:25:20
+  szDateTime[4]  = '\0';
+  szDateTime[7]  = '\0';
+  szDateTime[10] = '\0';
+  szDateTime[13] = '\0';
+  szDateTime[16] = '\0';
+  tm.tm_year = atoi( &szDateTime[0] ) - 1900;
+  tm.tm_mon  = atoi( &szDateTime[5] ) - 1;
+  tm.tm_mday = atoi( &szDateTime[8] );
+  tm.tm_hour = atoi( &szDateTime[11] );
+  tm.tm_min  = atoi( &szDateTime[14] );
+  tm.tm_sec  = atoi( &szDateTime[17] );
+  result = mktime( &tm );
+
+  return result;  
+}
+#endif // _USED_SPIFFS
+
+
 bool Machine::setDiskImage( int drive, bool writeProtected, const char * imgFileName )
 {
   char path[256];
@@ -492,7 +648,12 @@ bool Machine::setDiskImage( int drive, bool writeProtected, const char * imgFile
     memset( m_fdImgFileName[drive], 0, sizeof( m_fdImgFileName[drive] ) );
   m_DISK.eject( drive );
   if ( !( imgFileName && imgFileName[0] != 0 ) ) return true;
-  sprintf( path, "%s%s/%s", SD_MOUNT_PATH, PC8001MEDIA_DISK, imgFileName );
+  strcpy( path, MOUNT_PATH );
+  strcat( path, PC8001MEDIA_DISK );
+  int len = strlen( path );
+  if ( len >= 1 && path[len-1] != '/' )
+    strcat( path, "/" );
+  strcat( path, imgFileName );
   bool result = m_DISK.insert( drive, writeProtected, path );
   if ( !result ) return false;
   if ( drive >= 0 && drive < ARRAY_SIZE( m_fdImgFileName ) )

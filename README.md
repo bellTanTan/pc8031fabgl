@@ -176,6 +176,7 @@ d88ファイルは規定箇所へ配置します。d88ファイルのファイ�
 13行目は接続先SSIDのパスワードです。  
 17行目は利用するntpサーバーです。ローカルネットに自前のntpサーバーが無い場合は普段利用定義してるntpサーバーを記述します。以下から1つ選んでも良いと思います。選択の基準はネットワーク的距離(応答時間)と思います。昔、桜時計で...(草)  
 
+    ntp.nict.jp
     ntp1.jst.mfeed.ad.jp
     ntp2.jst.mfeed.ad.jp
     ntp3.jst.mfeed.ad.jp
@@ -216,7 +217,71 @@ bootログを示します。赤枠の箇所には接続先SSID/定義したIPア
 
 ![bootログ](/img/016.jpg)
 
-## 9.動作確認とfdメディア操作
+## 9.SPIFFS利用について
+
+src/emu.hの42行目を有効化(先頭の//を削除)することでSPIFFSを使用可能にしています。
+
+元
+    42 //#define _USED_SPIFFS
+
+spiffsを利用する(microSDは利用しない)
+
+    42 #define _USED_SPIFFS
+
+SPIFFSを利用する場合アクセス速度の都合上read only(読み出し専用)が許容範囲です。writeは余りにも遅すぎて実用に耐えられません。このリポジトリのdataディレクトリと同じ配置でdataフォルダを準備してそこにROMイメージファイル、利用予定のd88ファイルを置いてesp32のSPIFFSへ書き込みます。
+
+[ESP32 Sketch Data Upload](https://github.com/lorol/arduino-esp32fs-plugin)を使用しますので環境定義して下さい。Arduino IDE 2.0.x系では利用不可です。Arduino IDE 1.8.19にて利用します。
+
+esp32のE版(16Mbyte FLASH)を利用できる場合はアプリ1MB残りSPIFFSとしたパーティション情報を定義したら良いと思います。
+
+以下、linux版Arduino esp32 v2.0.6の場合のパーティション情報追加です。
+
+    $ cd .arduino15/packages/esp32/hardware/esp32/2.0.6/tools/partitions
+    $ vi noota_app1M_spiffs15M.csv
+    ------------------------------------------------------------------------------- ↓入力
+    # Name,   Type, SubType, Offset,  Size, Flags
+    nvs,      data, nvs,     0x9000,  0x5000,
+    otadata,  data, ota,     0xe000,  0x2000,
+    app0,     app,  ota_0,   0x10000, 0x100000,
+    spiffs,   data, spiffs,  0x110000,0xEE0000,
+    coredump, data, coredump,0xFF0000,0x10000,
+    ------------------------------------------------------------------------------- ↑入力
+    $ cat noota_app1M_spiffs15M.csv
+    # Name,   Type, SubType, Offset,  Size, Flags
+    nvs,      data, nvs,     0x9000,  0x5000,
+    otadata,  data, ota,     0xe000,  0x2000,
+    app0,     app,  ota_0,   0x10000, 0x100000,
+    spiffs,   data, spiffs,  0x110000,0xEE0000,
+    coredump, data, coredump,0xFF0000,0x10000,
+
+Arduino esp32 v2.0.6(SDK v4.4.3)よりcoredumpという名称のパーティションが最終箇所に必要になったようです。他のパーティション情報ファイルにも記載あり。詳細不明ｗ
+
+以下、linux版Arduino esp32 v2.0.6の場合のパーティションスキーム定義の追加です。
+
+    $ cd .arduino15/packages/esp32/hardware/esp32/2.0.6/
+    $ vi boards.txt
+    esp32.menu.PartitionScheme.rainmaker.upload.maximum_size=3145728 <--------------------------- この位置の下へ以下3行追加
+    esp32.menu.PartitionScheme.noota_app1M_spiffs15M=16M Flash (No OTA/1MB APP/15MB SPIFFS)
+    esp32.menu.PartitionScheme.noota_app1M_spiffs15M.build.partitions=noota_app1M_spiffs15M
+    esp32.menu.PartitionScheme.noota_app1M_spiffs15M.upload.maximum_size=1048576
+
+これでArduino IDEのメニューよりパーティション構成として「16M Flash (No OTA/1MB APP/15MB SPIFFS)」が選択可能になります。
+
+参考例としてこのリポジトリ内dataディレクトリに[OS]_IPL_TEST_disk_BASIC.d88を用意しています。ファイル名は30byteが最大です。SPIFFSのイメージ生成にてESP32側のSPIFFSパーティションに書き込むのですが残念ながらイメージ生成時各ファイル日時はtime_t = -1です。それではとても寂しいのでdataディレクトリに元々のファイルの日時情報を別ファイルに持ち込んでESP32側でそのファイルがある場合SPIFFSの各ファイル日時を更新するようにしています。(別件過去プログラムからのコピペですｗ)
+
+使用されているArduino IDE環境がUNIX or *BSD or linux or Macintosh(Mac OS X 以降)の場合SPIFFS向けのdataディレクトリをカレントディレクトリとしたコマンドプロンプト内で以下を実行します。
+
+    $ ls -lan --time-style="+%Y-%m-%d %H:%M:%S" > fileDateTimeList.txt
+
+使用されているArduino IDE環境がWindowsの場合SPIFFS向けのdataディレクトリをカレントディレクトリとしたコマンドプロンプト内で以下を実行します。
+
+    C:>forfiles /c "cmd /c echo @fsize @fdate @ftime @file" > fileDateTimeList.txt
+
+esp32側でファーム書き込み受信待機させます。DevkitC等の場合は特になにもする必要なしです。Arduino IDEのシリアルモニタが開いているとSPIFFS書き込み失敗しますのでArduino IDEのシリアルモニタは閉じて下さい。Arduino IDEのメニューよりESP32 Sketch Data Uploadをクリックして書き込みます。
+
+書き込み系でトラブル回避のためにFLASH ALL ERASE→SPIFFS書き込み→アプリ書き込みの流れで進めると良いと思います。
+
+## 10.動作確認とfdメディア操作
 
 青色LED点灯にてWebサーバ準備完了です。fdメディア操作はWeb画面にて行います。
 
@@ -224,7 +289,7 @@ bootログを示します。赤枠の箇所には接続先SSID/定義したIPア
 
 mDNS名の定義が元のままの場合は以下のように利用されているWebブラウザのURLに入力します。
 
-    http:://pc8031fabgl.local/
+    http://pc8031fabgl.local/
 
 特定のOS(Android)で特定のWebブラウザ(Google Chrome)でmDNS利用不可が続いています(笑) 絶対mDNS実装するのがイヤなんだと思います(草) AppleのBonjourがイヤなんだろうかｗ RFC定義されてるしAvahiあるし持ってくるだけじゃダメなのかなｗ そんな特定環境の場合はIPアドレス値で入力して下さい。ローカルDNS or hostsファイル等で名前解決できる場合はその名称を利用されているWebブラウザのURLに入力します。
 
@@ -260,15 +325,19 @@ d88ファイルでマスターファイルの消失には十分に注意して�
 
 よくはまるのがPC-8001mkIIディップスイッチ8ON(Nモード)でN-80 DISK SYSTEMセットしてbootしたら画面に「NON DISK BASIC」と出て「ありゃDISK bootしてNON DISKって...　あっ CTRL+RESETか。ﾃﾍﾍﾟﾛ」あるあるですっｗ
 
-## 10.誤配線等の確認
+## 11.誤配線等の確認
 
 /EXTON無効状態にして、このリポジトリのtest1/ShiftInOut/ShiftInOut.inoをESP32-DevkitCへファーム書き込んで下さい。PC側にはこのリポジトリのtest1/dio-test {cload DIO}.cmtをCMTロードして下さい。PC側のBASICプログラムをRUNします。0x0000〜0x0FFFの値を8255PB(PB0〜PB7)と8255PC(PC4〜PC7)へ出力します。ESP32側は自己タイミングでポーリングShiftInし前回入力値と変化があれば全ビット反転(NOT)します。そのなかで上位4ビットを赤色LED1〜4に0x01→0x02→0x04→0x08→0x08→0x04→0x02→0x01と定義したのちにShiftOutします。PC側はハンドシェイク無しの自己タイミングで8255PA(PA0〜PA7)と8255PC(PC0〜PC3)を入力し自己が出力した値がビット反転されて来てるか判断します。PC側のロジックをうまく活用(改変)して誤配線の特定に利用して下さい。
 
-## 11.Webサーバについて
+どうしてもCMTロード出来ない(環境構築出来ない/環境構築してもCMTロード出来ない/等)場合のためにPC側BASICプログラムのリストを示します。手打ちして下さい。
 
-いわゆるセッション時間管理は実装していません。一度Web画面を開くと何時間でもセッション有効です(笑) 製品化して販売する訳でもないのでこれでいいかと思ってます。誤作動するパターンは「Web画面開きっぱでmicroSDを抜いてmicroSD内容更新してmicroSDを挿してPC電源入れたのちに開きっぱなWeb画面からfdメディア選択すると異なるfdメディアが選択される場合がある」です(笑)
+![動作確認2](/img/023.jpg)
 
-## 12.LED状態表示について
+## 12.Webサーバについて
+
+いわゆるセッション時間管理は実装していません。一度Web画面を開くと何時間でもセッション有効です(笑) 製品化して販売する訳でもないのでこれでいいかと思ってます。誤作動するパターンは「Web画面開きっぱでmicroSDを抜いて別機器でmicroSD内容更新してmicroSDを挿してPC電源入れたのちに開きっぱなWeb画面からfdメディア選択すると異なるfdメディアが選択される場合がある」です(笑)
+
+## 13.LED状態表示について
 
 青色LED
 
@@ -300,11 +369,11 @@ d88ファイルでマスターファイルの消失には十分に注意して�
     青色LED赤色LED2が点滅(500msec周期)→ROMイメージファイルロード失敗(ファイルが無い/特定位置のバイナリ値が既出バイナリ値外/等含む)
     青色LED赤色LED1,2が点滅(500msec周期)→seek音生成のためのメモリ確保失敗
 
-## 13.問題点
+## 14.問題点
 
 拙作n80FabGLと同様でseek音が微妙(笑) format(uPD765AコマンドwriteID)だとまるわかり。旧友曰く「うーん、これ違うやん。もっとこもった感じでドッドッドッドッじゃね」はいはい、そのとおりですっｗ だって実装むずいんだもん。
 
-## 14.最後に
+## 15.最後に
 
 旧友に煽られて実機接続可なDISKユニットとしてエミュ実装してみました。microSDのメンテナンスをWeb画面経由(リスト表示/アップロード対応/ダウンロード対応/名称変更/削除)で出来るようにしてくれと言われそう(笑) そこまで実装したら某製品やん。ヤダよｗ それでもどうしてもと押し切られそう(笑)
 

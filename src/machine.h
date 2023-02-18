@@ -33,7 +33,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <utime.h>
 #include <sys/time.h>
+#include <sys/utime.h>
 #include <WiFi.h>
 #include <WiFiClient.h>
 #include <WebServer.h>
@@ -68,6 +70,7 @@ class Machine
 public:
   typedef struct {
     char *  name;
+    time_t  tLastWrite;
   } DIRLIST , *PDIRLIST;
 
   Machine();
@@ -82,6 +85,14 @@ public:
   bool getDiskRomEnable( void )               { return m_diskRomEnable; }
   bool get2kRomLoaded( void )                 { return m_DISK.get2kRomLoaded(); }
   void shiftOutput( uint16_t value )          { m_DISK.shiftOutput( value ); }
+
+  void setFdSettingComplete( void )
+  {
+    m_wifiTimer         = millis();
+    m_wifiStatusLed     = HIGH;
+    m_ledFlickerCount   = 20;
+    m_fdSettingComplete = true;
+  }
 
   bool setDiskImage( int drive, bool writeProtected, const char * imgFileName );
   const char * getDiskImageFileName( int drive );  
@@ -112,6 +123,10 @@ private:
   bool listDir( void );
   void freeDir( void );
   static int qsortComp( const void * p0, const void * p1 );
+#ifdef _USED_SPIFFS
+  bool updateSpiffsFileDateTime( void );
+  time_t getFileDateTime( uint8_t * binBuf, const char * pszPath );
+#endif // _USED_SPIFFS
 
 #ifdef _DEBUG
   void debugHelp( void );
@@ -140,6 +155,8 @@ private:
   int             m_wifiStatusLed;          // wifi led status
   int             m_wifiConnectCheckCnt;    // wifi connect check counter
   int             m_wifiTimer;              // wifi connect check timer
+  int             m_ledFlickerCount;        // system status led flicker count
+  bool            m_fdSettingComplete;      // flag : fd setting complete
 
   char            m_version[64];            // version
 };

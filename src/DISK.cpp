@@ -80,7 +80,7 @@ bool DISK::romLoad( const char * fileName )
   if ( !m_RAM ) return false;
   bool romload = false;
   char path[256];
-  strcpy( path, SD_MOUNT_PATH );
+  strcpy( path, MOUNT_PATH );
   strcat( path, fileName );
   auto fp = fopen( path, "r" );
   if ( !fp ) return false;

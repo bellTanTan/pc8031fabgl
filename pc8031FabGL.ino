@@ -3,12 +3,14 @@
   Copyright (c) 2022 tan
   All rights reserved.
 
-  Arduino IDE board : Arduino ESP32 v2.0.5
+  Arduino IDE board : Arduino ESP32 v2.0.6
   library           : FabGL v1.0.9
   target            : ESP32 DEV Module
   flash size        : 4MB(32Mb)
   partition scheme  : Huge APP (3MB No OTA/1MB SPIFFS)
   PSRAM             : Disabled
+  Arduino Run On    : Core 1
+  Event Run On      : Core 1
 
 * Please contact trinity09181718@gmail.com if you need a commercial license.
 * This software is available under GPL v3.
@@ -100,7 +102,11 @@ void setup()
     switch ( result )
     {
       case -1:
+#ifndef _USED_SPIFFS
         errMsg = "SD mount failed";
+#else
+        errMsg = "SPIFFS mount failed";
+#endif // _USED_SPIFFS
         break;
       case -2:
         errMsg = "ROM file load failed";
@@ -177,6 +183,7 @@ void webHandleApply( void )
         preferences.putString( key, p );
       }
     }
+    m->setFdSettingComplete();
   }
 }
 

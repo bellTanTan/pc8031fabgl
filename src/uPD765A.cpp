@@ -806,32 +806,45 @@ uint32_t uPD765A::write_id( void )
     return m_result;
   if ( m_media[drv].getWriteProtected() )
     return ST0_AT | ST1_NW;
+
+// S-DOS v1.1 Format Ver1.1 でセクタ単位でwrite_idを実施するとフォーマットトータル処理時間タイムアウト判定NGでリブートする事がわかった。
+// Arduino ESP32 v2.0.5 でspiffsで1シリンダー = 16セクタ((16+256)*16=4352bytes)更新するのに6秒かかる事もわかった。
+// 処理速度を早くする為にメディアクラスformatTrackBeginメソッドで16セクタ((16+256)*16=4352bytes)ぶんメモリ確保しformatSectorメソッドでメモリへ展開
+// formatTrackEndメソッドで実メディア(microSD/spiffs)へ出力する方式に変更した。
+//
+// Arduino ESP32 v2.0.5
+//   microSD(Transcend 8GB)
+//     d88 1シリンダー書き込み平均260ミリ秒(msec) (fopen, fseek, (16+256)*16=4352bytes fwrite, fclose)
+//     d88 2Dフォーマット計算上時間 20.8秒 = 260ミリ秒(msec) x 40シリンダー x 2ヘッド
+//   spiffs(ESP32-WROOM-32E(FALSH16MB)より15MBspiffsパーティション定義)
+//     d88 1シリンダー書き込み平均2223ミリ秒(msec) (fopen, fseek, (16+256)*16=4352bytes fwrite, fclose)
+//     d88 2Dフォーマット計算上時間 177.8秒 = 2223ミリ秒(msec) x 40シリンダー x 2ヘッド
+//
+// Arduino ESP32 v2.0.6
+//   microSD(Transcend 8GB)
+//     d88 1シリンダー書き込み平均252ミリ秒(msec) (fopen, fseek, (16+256)*16=4352bytes fwrite, fclose)
+//     d88 2Dフォーマット計算上時間 20.2秒 = 252ミリ秒(msec) x 40シリンダー x 2ヘッド
+//   spiffs(ESP32-WROOM-32E(FALSH16MB)より15MBspiffsパーティション定義)
+//     d88 1シリンダー書き込み平均2458ミリ秒(msec) (fopen, fseek, (16+256)*16=4352bytes fwrite, fclose)
+//     d88 2Dフォーマット計算上時間 196.6秒 = 2458ミリ秒(msec) x 40シリンダー x 2ヘッド
+//
+// spiffs(ESP32-WROOM-32E(FALSH16MB)より15MBspiffsパーティション定義)では1シリンダー更新6秒が2秒強に出来たが桁がひと桁大きい。
+// microSDに利用されているチップと単純に比較は出来ないのかもしれないけど遅すぎ。だけどESP32的には妥当な時間と思う。
+// 応答速度が必須な実装でのspiffs運用はやはりread onlyメディアとしての運用が無難。
+
   if ( !m_media[drv].formatTrackBegin( cylinder, head, m_sc ) )
     return ST0_AT | ST1_MA;
-// S-DOS v1.1 Format Ver1.1 でセクタ単位でwrite_idを実施するとフォーマットトータル処理時間タイムアウト判定NGでリブートする事がわかった。
-// 処理速度を早くする為にメディアクラスのformatSectorメソッドコール1発で済ます。シリンダー内各セクタの fill データは同一と仮定(ｗ)して
-// シリンダー単位(セクタNo1〜EOTまで)でwrite_id処理に変更した。
-//  for ( int i = 0; i < m_eot && i < 256; i++ )
-//  {
-//    for ( int j = 0; j < 4; j++ )
-//      m_id[j] = m_buffer[ 4 * i + j ];
-//    _UPD765A_DEBUG_PRINT( "uPD765A %s(%d) c(%d) h(%d) r(%2d) n(%d) fill(0x%02X) length(%d)\r\n",
-//                          __func__, __LINE__, m_id[0], m_id[1], m_id[2], m_id[3], m_fill, length );
-//    if ( !m_media[drv].formatSector( m_id[0], m_id[1], m_id[2], m_id[3], m_fill, length ) )
-//    {
-//      result = ST0_AT | ST1_MA;
-//      break;
-//    }
-//  }
-  m_id[0] = m_buffer[0];  // cylinder
-  m_id[1] = m_buffer[1];  // head
-  m_id[2] = m_buffer[2];  // sectorNo
-  m_id[3] = m_buffer[3];  // sectorLen
-  _UPD765A_DEBUG_PRINT( "uPD765A %s(%d) c(%d) h(%d) r(%2d) n(%d) eot(%d) fill(0x%02X) length(%d)\r\n",
-                          __func__, __LINE__, m_id[0], m_id[1], m_id[2], m_id[3], m_eot, m_fill, length );
-  if ( !m_media[drv].formatSector( m_id[0], m_id[1], m_id[2], m_id[3], m_eot, m_fill, length ) )
+  for ( int i = 0; i < m_eot && i < 256; i++ )
   {
-    result = ST0_AT | ST1_MA;
+    for ( int j = 0; j < 4; j++ )
+      m_id[j] = m_buffer[ 4 * i + j ];
+    _UPD765A_DEBUG_PRINT( "uPD765A %s(%d) c(%d) h(%d) r(%2d) n(%d) eot(%d) fill(0x%02X) length(%d)\r\n",
+                          __func__, __LINE__, m_id[0], m_id[1], m_id[2], m_id[3], m_eot, m_fill, length );
+    if ( !m_media[drv].formatSector( m_id[0], m_id[1], m_id[2], m_id[3], m_eot, m_fill, length ) )
+    {
+      result = ST0_AT | ST1_MA;
+      break;
+    }
   }
   m_media[drv].formatTrackEnd();
   _UPD765A_DEBUG_PRINT( "uPD765A %s(%d) result(0x%08X)\r\n", __func__, __LINE__, result );

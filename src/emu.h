@@ -39,11 +39,24 @@
 //#define _UPD765A_DEBUG
 //#define _HTTP_DEBUG
 
-#define SD_MOUNT_PATH           "/SD"
-#define PC80312W_ROM            "/PC8001/PC-8031-2W.ROM"
-#define PC80S31_ROM             "/PC8001/PC-80S31.ROM"
-#define DISK_ROM                "/PC8001/DISK.ROM"
-#define PC8001MEDIA_DISK        "/PC8001/MEDIA/DISK"
+//#define _USED_SPIFFS
+
+#ifndef _USED_SPIFFS
+  #define MOUNT_PATH            "/sd"
+  #define PC80312W_ROM          "/PC8001/PC-8031-2W.ROM"
+  #define PC80S31_ROM           "/PC8001/PC-80S31.ROM"
+  #define DISK_ROM              "/PC8001/DISK.ROM"
+  #define PC8001MEDIA_DISK      "/PC8001/MEDIA/DISK"
+  #define FILE_DATETIME_LIST    ""
+#else
+  #define MOUNT_PATH            "/spiffs"
+  #define PC80312W_ROM          "/PC-8031-2W.ROM"
+  #define PC80S31_ROM           "/PC-80S31.ROM"
+  #define DISK_ROM              "/DISK.ROM"
+  #define PC8001MEDIA_DISK      "/"
+  #define FILE_DATETIME_LIST    "fileDateTimeList.txt"
+#endif // _USED_SPIFFS
+
 #define D88_FILE_EXTENSION      ".d88"
 #define MAX_DRIVE               (4)
 
@@ -58,7 +71,7 @@
                                       //  ON                         : pc8031FabGL web server ready
                                       //  Very First flicker(50msec) : fd setting complete
                                       //  First flicker(100msec)     : Wi-Fi connect failed
-                                      //  Slow  flicker(500msec)     : Wi-Fi connecting
+                                      //  Normal flicker(500msec)    : Wi-Fi connecting
 
 #define ARRAY_SIZE( array )     ( (int)( sizeof( array ) / sizeof( (array)[0] ) ) )
 #define HLT                     { while ( 1 ) { delay( 500 ); } }
