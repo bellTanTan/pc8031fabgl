@@ -222,6 +222,7 @@ bootログを示します。赤枠の箇所には接続先SSID/定義したIPア
 src/emu.hの42行目を有効化(先頭の//を削除)することでSPIFFSを使用可能にしています。
 
 元
+
     42 //#define _USED_SPIFFS
 
 spiffsを利用する(microSDは利用しない)
