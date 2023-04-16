@@ -1,6 +1,6 @@
 /*
   Created by tan (trinity09181718@gmail.com)
-  Copyright (c) 2022 tan
+  Copyright (c) 2022-2023 tan
   All rights reserved.
 
 * Please contact trinity09181718@gmail.com if you need a commercial license.
@@ -260,7 +260,7 @@ bool media::formatSector( int cylinder, int head, int sectorNo, int sectorLen, i
   pD88SectorHead->cylinder       = cylinder;
   pD88SectorHead->head           = head;
   pD88SectorHead->sector         = sectorNo;
-  pD88SectorHead->sectorSize     = length;
+  pD88SectorHead->sectorSize     = 1;
   pD88SectorHead->numberOfSector = eot;
   pD88SectorHead->density        = 0x00;  // 0x00 : double density
   pD88SectorHead->deletedMark    = 0x00;  // 0x00 : normal

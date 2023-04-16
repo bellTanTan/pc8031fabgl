@@ -1,6 +1,6 @@
 /*
   Created by tan (trinity09181718@gmail.com)
-  Copyright (c) 2022 tan
+  Copyright (c) 2022-2023 tan
   All rights reserved.
 
 * Please contact trinity09181718@gmail.com if you need a commercial license.
@@ -23,6 +23,7 @@
  */
 
 // 更新履歴
+// 2023/04/15 V1.0.3 format(write_id)で.d88のsectorSizeフィールドが0x00になっていた不具合改修。
 // 2022/12/30 v1.0.2 uPD765A writeIDコマンド処理(format)速度改善。microSD(Transcend 8GB)で計算上20秒弱。
 //                   実測(n-basicコマンドformat 2)だと19秒。
 //                   fdモータ停止後のfdモータスピンアップ待ち時間が入った場合の実測(n-basicコマンドformat 2)だと22秒。
@@ -43,7 +44,7 @@
 
 #define PC8031FABGL_VERSION_MAJOR       1
 #define PC8031FABGL_VERSION_MINOR       0
-#define PC8031FABGL_VERSION_REVISION    2
+#define PC8031FABGL_VERSION_REVISION    3
 
 #define PC8031FABGL_VERSION             ( ((int)PC8031FABGL_VERSION_MAJOR) << 16 \
                                         | ((int)PC8031FABGL_VERSION_MINOR) << 8 \

@@ -1,9 +1,9 @@
 /*
   Created by tan (trinity09181718@gmail.com)
-  Copyright (c) 2022 tan
+  Copyright (c) 2022-2023 tan
   All rights reserved.
 
-  Arduino IDE board : Arduino ESP32 v2.0.6
+  Arduino IDE board : Arduino ESP32 v2.0.7
   library           : FabGL v1.0.9
   target            : ESP32 DEV Module
   flash size        : 4MB(32Mb)
